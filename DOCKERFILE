@@ -1,0 +1,59 @@
+# docker build -t jaredbebb/unsupervised_learning_tensorflow:0.0.3 .
+# docker push jaredbebb/unsupervised_learning_tensorflow:0.0.3
+# docker run -it jaredbebb/unsupervised_learning_tensorflow:0.0.3
+
+FROM tensorflow/tensorflow:0.11.0-gpu
+LABEL Description="Start container with \"docker run -it -p 8888:8888 jaredbebb/unsupervised_learning_tensorflow:0.0.3\". App inspired by https://github.com/allenai/bi-att-flow/tree/demo. See app running on http://localhost:8888/"
+WORKDIR /usr/src/app
+
+COPY . .
+
+RUN apt update && apt-get install wget
+
+# install python build libraries
+RUN for lib in build-essential zlib1g-dev libbz2-dev liblzma-dev libncurses5-dev libreadline6-dev libsqlite3-dev libssl-dev libgdbm-devliblzma-dev tk8.5-dev lzma lzma-dev libgdbm-dev swig; do apt-get -y install $lib; done
+
+# install python 3.5.2
+RUN wget https://www.python.org/ftp/python/3.5.2/Python-3.5.2.tgz  \
+	&& sudo tar xzf Python-3.5.2.tgz  \
+	&& cd Python-3.5.2  \
+	&& sudo ./configure  \
+	&& make  \
+	&& sudo make altinstall \
+	&& cd .. \
+	&& rm Python-3.5.2.tgz \
+	&& rm -r Python-3.5.2
+
+# install project dependencies
+RUN python3.5 -m pip install six numpy wheel setuptools mock 'future>=0.17.1' 'tqdm==4.7.4' 'nltk==3.2.1' flask 'ipython==7.9.0'
+
+# install tensorflow
+ENV TF_BINARY_URL https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow-0.11.0-cp35-cp35m-linux_x86_64.whl
+RUN python3.5 -m pip install --ignore-installed --upgrade $TF_BINARY_URL
+
+# Install project dependencies
+RUN DATA_DIR=$HOME/data \
+	&& mkdir "$DATA_DIR" \
+	&& echo $DATA_DIR \
+	# \
+	# Download SQuAD \
+	&& SQUAD_DIR=$DATA_DIR/squad \
+	&& mkdir $SQUAD_DIR \
+	&& wget https://rajpurkar.github.io/SQuAD-explorer/dataset/train-v1.1.json -O $SQUAD_DIR/train-v1.1.json \
+	&& wget https://rajpurkar.github.io/SQuAD-explorer/dataset/dev-v1.1.json -O $SQUAD_DIR/dev-v1.1.json \
+	# \
+	# Download CNN and DailyMail \
+	# Download at: http://cs.nyu.edu/~kcho/DMQA/ \
+	# \
+	# Download GloVe \
+	&& GLOVE_DIR=$DATA_DIR/glove \
+	&& mkdir $GLOVE_DIR \
+	&& wget http://nlp.stanford.edu/data/glove.6B.zip -O $GLOVE_DIR/glove.6B.zip \
+	&& unzip $GLOVE_DIR/glove.6B.zip -d $GLOVE_DIR \
+	# \
+	# Download NLTK (for tokenizer) \
+	# Make sure that nltk is installed! \
+	&& yes | python3.5 -m nltk.downloader -d $HOME/nltk_data punkt
+
+# Run web app file
+CMD python3.5 run-demo.py
